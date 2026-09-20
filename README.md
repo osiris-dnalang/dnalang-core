@@ -1,5 +1,8 @@
 # dnalang
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22862567.svg)](https://doi.org/10.5281/zenodo.22862567)  
+Snapshot 2026-09-20 of the three repositories with their pre-registered results: [10.5281/zenodo.22862567](https://doi.org/10.5281/zenodo.22862567) (concept DOI 10.5281/zenodo.22862566).
+
 A small language for describing *families* of quantum circuits, an evolutionary search over them, hardware-in-the-loop fitness on IBM Quantum, and a hash-chained ledger of every run.
 
 It does three things:
