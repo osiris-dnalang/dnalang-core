@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+message: "If you use dnalang, please cite it as below."
+type: software
+title: "dnalang: a language for quantum circuit families with hardware-in-the-loop evolutionary search"
+version: 0.1.0
+date-released: 2026-09-20
+license: Apache-2.0
+authors:
+  - family-names: Davis
+    given-names: Devin Phillip
+    affiliation: Agile Defense Systems LLC
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.22855102
+    description: "Controlled hardware tests on ibm_fez that this version's examples reproduce"
+keywords:
+  - quantum computing
+  - dynamical decoupling
+  - genetic algorithm
+  - OpenQASM 3
+  - reproducibility

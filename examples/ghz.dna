@@ -1,0 +1,22 @@
+// GHZ chain with a parity-basis readout gene, parameterized by the readout phase.
+organism GHZ4 {
+  gene prep() on q0, q1, q2, q3 {
+    helix q0;
+    bond q0, q1;
+    bond q1, q2;
+    bond q2, q3;
+  }
+  // measure (cos φ X + sin φ Y): RZ(-φ) then H then Z
+  gene readout(phi: angle) on q {
+    twist(-phi) q;
+    helix q;
+    cleave q -> c;
+  }
+  genome {
+    prep() @ [0, 1, 2, 3];
+    readout(pi()/4) @ [0];
+    readout(pi()/4) @ [1];
+    readout(pi()/4) @ [2];
+    readout(pi()/4) @ [3];
+  }
+}

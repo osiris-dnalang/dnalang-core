@@ -1,0 +1,41 @@
+// Staggered XY4x2 dynamical decoupling on a 4-qubit chain: the sequence that won on ibm_fez
+// on 2026-09-20 (0.946 / 0.888 / 0.795 survival at 8 / 16 / 32 us).
+organism StaggeredXY4 {
+  meta { window_us: 16, source: "10.5281/zenodo.22855102" }
+
+  gene xy4x2(T: duration) on q {
+    helix q;
+    wait(T/16) q;  echo(X) q;
+    wait(T/8) q;   echo(Y) q;
+    wait(T/8) q;   echo(X) q;
+    wait(T/8) q;   echo(Y) q;
+    wait(T/8) q;   echo(X) q;
+    wait(T/8) q;   echo(Y) q;
+    wait(T/8) q;   echo(X) q;
+    wait(T/8) q;   echo(Y) q;
+    wait(T/16) q;
+    helix q;
+    cleave q -> c;
+  }
+  // odd sites: same pulses, shifted by half a slot so neighbouring pi-pulses never coincide
+  gene xy4x2_stag(T: duration) on q {
+    helix q;
+    wait(T/8) q;   echo(X) q;
+    wait(T/8) q;   echo(Y) q;
+    wait(T/8) q;   echo(X) q;
+    wait(T/8) q;   echo(Y) q;
+    wait(T/8) q;   echo(X) q;
+    wait(T/8) q;   echo(Y) q;
+    wait(T/8) q;   echo(X) q;
+    wait(T/8) q;   echo(Y) q;
+    helix q;
+    cleave q -> c;
+  }
+  genome {
+    xy4x2(16us) @ [0];
+    xy4x2_stag(16us) @ [1];
+    xy4x2(16us) @ [2];
+    xy4x2_stag(16us) @ [3];
+  }
+  fitness survival_plus;
+}
