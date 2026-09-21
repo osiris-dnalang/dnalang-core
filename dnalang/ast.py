@@ -107,6 +107,30 @@ class Gene:
 
 
 @dataclass
+class KVGene:
+    """A key-value gene: ``gene NAME { key: value, ... }``.
+
+    kind is inferred: ``rule`` if it has a ternary ``condition`` (+ DSL ``action``);
+    ``regulator`` if it has a ``trigger`` and no condition (DSL ``action``, optional
+    ``dependencies``/``outputs``). Unknown keys are kept in ``fields`` untouched.
+    """
+    name: str
+    fields: dict
+    pos: Pos
+
+    @property
+    def kind(self) -> str:
+        if "condition" in self.fields:
+            return "rule"
+        if "trigger" in self.fields:
+            return "regulator"
+        return "data"
+
+    def get(self, key: str, default=None):
+        return self.fields.get(key, default)
+
+
+@dataclass
 class GeneInstance:
     gene: str
     args: List[Expr]
@@ -123,3 +147,13 @@ class Organism:
     fitness: Optional[str]
     cbits: List[str] = field(default_factory=list)   # filled by sema, in declaration order
     pos: Optional[Pos] = None
+    kv_genes: List[KVGene] = field(default_factory=list)
+    sections: dict = field(default_factory=dict)      # extra named blocks (dna, metrics, ...) as dicts
+
+    @property
+    def rules(self) -> List[KVGene]:
+        return [g for g in self.kv_genes if g.kind == "rule"]
+
+    @property
+    def regulators(self) -> List[KVGene]:
+        return [g for g in self.kv_genes if g.kind == "regulator"]

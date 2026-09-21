@@ -1,4 +1,4 @@
-"""dnalang CLI: parse | check | lower | qasm | run | verify-ledger"""
+"""dnalang CLI: parse | check | lower | qasm | run | rules | regulation | ir | verify-ledger"""
 from __future__ import annotations
 
 import argparse
@@ -22,7 +22,7 @@ def _load(path: str):
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="dnalang")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    for name in ("parse", "check", "lower", "qasm", "run"):
+    for name in ("parse", "check", "lower", "qasm", "run", "rules", "regulation", "ir"):
         p = sub.add_parser(name); p.add_argument("file")
         if name == "run":
             p.add_argument("--shots", type=int, default=1024); p.add_argument("--seed", type=int)
@@ -36,12 +36,27 @@ def main(argv=None):
         print("ledger OK" if bad is None else f"ledger BROKEN: {bad}"); return 0 if bad is None else 1
     org = _load(a.file)
     if a.cmd == "parse":
-        print(f"organism {org.name}: {len(org.genes)} genes, {len(org.genome)} instances, meta={org.meta}"); return 0
+        print(f"organism {org.name}: {len(org.genes)} circuit genes, {len(org.rules)} rule genes, "
+              f"{len(org.regulators)} regulator genes, {len(org.genome)} instances, meta={org.meta}"); return 0
     d = check(org)
     for w in d.warnings: print("warning:", w)
     for e in d.errors: print("error:", e)
     if a.cmd == "check" or d.errors:
         return 0 if d.ok() else 1
+    if a.cmd in ("rules", "regulation", "ir"):
+        from .rules_ir import LowerError, lower_all
+        try:
+            t = lower_all(org)
+        except (LowerError, SemaError) as e:
+            sys.exit(f"error: {e}")
+        if a.cmd == "ir":
+            print(json.dumps({k: (v.to_dict() if v is not None and k != "circuit" else
+                                  ({"n_qubits": v.n_qubits, "ops": len(v.ops), "sha256": v.sha256()} if v is not None else None))
+                              for k, v in t.items()}, indent=1)); return 0
+        v = t[a.cmd]
+        if v is None:
+            sys.exit(f"error: organism has no {a.cmd} target")
+        print(json.dumps(v.to_dict(), indent=1)); print(f"// sha256 {v.sha256()}"); return 0
     try:
         circ = lower(org)
     except SemaError as e:

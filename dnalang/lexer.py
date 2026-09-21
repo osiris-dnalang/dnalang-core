@@ -9,6 +9,7 @@ from .ast import Pos
 KEYWORDS = {
     "organism", "meta", "gene", "on", "genome", "fitness",
     "wait", "echo", "cleave", "barrier", "angle", "duration", "int",
+    "dna", "metrics", "true", "false",
 }
 
 # biological spellings -> canonical IR op names (both are accepted everywhere)
@@ -93,7 +94,9 @@ def tokenize(src: str) -> List[Token]:
             while j < n and (src[j].isalnum() or src[j] == "_"):
                 j += 1
             word = src[i:j]
-            emit("KEYWORD" if word in KEYWORDS else "IDENT", word, line, col)
+            low = word.lower()
+            # keywords are case-insensitive (the 2025 genomes are upper-case); identifiers are not
+            emit("KEYWORD" if low in KEYWORDS else "IDENT", low if low in KEYWORDS else word, line, col)
             col += j - i; i = j
             continue
         raise LexError(f"{line}:{col}: unexpected character {ch!r}")

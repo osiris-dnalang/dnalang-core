@@ -2,9 +2,14 @@
 
 Grammar (EBNF; also in docs/LANGUAGE.md):
 
-  organism   := "organism" IDENT "{" meta? gene* genome fitness? "}"
-  meta       := "meta" "{" (IDENT ":" (STRING|NUMBER) ","?)* "}"
-  gene       := "gene" IDENT "(" params? ")" "on" ports "{" stmt* "}"
+  organism   := "organism" IDENT "{" (meta | section | gene | kvgene | genome | fitness)* "}"
+  meta       := "meta" "{" kv* "}"              section := ("dna" | "metrics") "{" kv* "}"
+  kv         := IDENT ":" value ","?            value := STRING | NUMBER | true | false | "[" (value ("," value)*)? "]"
+  gene       := "gene" IDENT "(" params? ")" "on" ports "{" stmt* "}"      (circuit gene)
+  kvgene     := "gene" IDENT "{" kv* "}"                                    (rule / regulator gene)
+                 rule      ⇔ has "condition" (ternary 0/1/#) and "action" (closed DSL)
+                 regulator ⇔ has "trigger" and "action", optional "dependencies", "outputs"
+  genome     := "genome" "{" (instance | kvgene)* "}"   (kv genes allowed inside for the 2025 dialect)
   params     := param ("," param)*          param := IDENT ":" ("angle"|"duration"|"int")
   ports      := IDENT ("," IDENT)*
   stmt       := gateop args? qubits ";"
@@ -76,39 +81,83 @@ class Parser:
         name = self.expect("IDENT").text
         self.expect("SYM", "{")
         meta = {}
+        sections = {}
         genes: List[A.Gene] = []
+        kv_genes: List[A.KVGene] = []
         genome: List[A.GeneInstance] = []
         fitness = None
         seen_genome = False
         while not self.accept("SYM", "}"):
             if self.kw("meta"):
                 meta = self.meta()
+            elif self.cur.kind == "KEYWORD" and self.cur.text in ("dna", "metrics"):
+                key = self.cur.text
+                self.i += 1
+                sections[key] = self.meta()
             elif self.kw("gene"):
-                genes.append(self.gene())
+                if self.peek().kind == "SYM" and self.peek().text == "{":
+                    kv_genes.append(self.kvgene())
+                else:
+                    genes.append(self.gene())
             elif self.kw("genome"):
                 if seen_genome:
                     self.err("duplicate genome block")
-                genome = self.genome(); seen_genome = True
+                genome = self.genome(kv_genes); seen_genome = True
             elif self.kw("fitness"):
                 fitness = self.expect("IDENT").text
-                self.expect("SYM", ";")
+                self.accept("SYM", ";")
             else:
                 self.err("expected meta, gene, genome or fitness")
-        if not seen_genome:
+        if not seen_genome and not kv_genes:
             raise ParseError(f"{start.pos}: organism '{name}' has no genome block")
         self.expect("EOF")
-        return A.Organism(name=name, meta=meta, genes=genes, genome=genome, fitness=fitness, pos=start.pos)
+        return A.Organism(name=name, meta=meta, genes=genes, genome=genome, fitness=fitness,
+                          pos=start.pos, kv_genes=kv_genes, sections=sections)
+
+    def key(self) -> str:
+        """A key in a kv block: identifiers and keywords are both allowed (``metrics: [...]``)."""
+        t = self.accept("IDENT") or self.accept("KEYWORD")
+        if t is None:
+            self.err("expected a key")
+        return t.text
+
+    def value(self):
+        t = self.accept("STRING") or self.accept("NUMBER")
+        if t is not None:
+            return t.text if t.kind == "STRING" else self._number(t)
+        if self.kw("true"):
+            return True
+        if self.kw("false"):
+            return False
+        if self.accept("SYM", "["):
+            out = []
+            while not self.accept("SYM", "]"):
+                out.append(self.value())
+                self.accept("SYM", ",")
+            return out
+        if self.cur.kind == "IDENT":          # bare word value (legacy files)
+            return self.expect("IDENT").text
+        self.err("expected a value (string, number, true/false, [list])")
+
+    def kvgene(self) -> A.KVGene:
+        pos = self.cur.pos
+        name = self.expect("IDENT").text
+        self.expect("SYM", "{")
+        fields = {}
+        while not self.accept("SYM", "}"):
+            key = self.key()
+            self.expect("SYM", ":")
+            fields[key] = self.value()
+            self.accept("SYM", ",")
+        return A.KVGene(name, fields, pos)
 
     def meta(self) -> dict:
         self.expect("SYM", "{")
         out = {}
         while not self.accept("SYM", "}"):
-            key = self.expect("IDENT").text
+            key = self.key()
             self.expect("SYM", ":")
-            t = self.accept("STRING") or self.accept("NUMBER")
-            if t is None:
-                self.err("meta value must be a string or number")
-            out[key] = t.text if t.kind == "STRING" else self._number(t)
+            out[key] = self.value()
             self.accept("SYM", ",")
         return out
 
@@ -187,10 +236,15 @@ class Parser:
             return A.Gate(GATE_ALIASES[t.text], args, qs, t.pos)
         self.err("expected a statement")
 
-    def genome(self) -> List[A.GeneInstance]:
+    def genome(self, kv_genes: Optional[List[A.KVGene]] = None) -> List[A.GeneInstance]:
         self.expect("SYM", "{")
         out: List[A.GeneInstance] = []
         while not self.accept("SYM", "}"):
+            if self.kw("gene"):                      # 2025 dialect: genes declared inside genome
+                if kv_genes is None:
+                    self.err("gene declarations inside genome are not allowed here")
+                kv_genes.append(self.kvgene())
+                continue
             t = self.expect("IDENT")
             args: List[A.Expr] = []
             if self.accept("SYM", "("):

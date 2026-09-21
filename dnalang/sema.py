@@ -66,8 +66,45 @@ def eval_expr(e: A.Expr, env: Dict[str, float]) -> float:
     raise SemaError(f"unhandled expression {e!r}")
 
 
+def check_kv(org: A.Organism, d: Diagnostics) -> None:
+    """Rule and regulator genes: unique ids, ternary conditions of one width, valid closed-DSL
+    actions, valid triggers, known dependencies, no dependency cycles."""
+    from .rules_ir import LowerError, lower_regulation, lower_rules
+    ids = set()
+    for i, g in enumerate(org.kv_genes):
+        gid = str(g.get("id", f"G{i}"))
+        if gid in ids:
+            d.errors.append(f"{g.pos}: duplicate gene id '{gid}'")
+        ids.add(gid)
+        if g.kind == "data":
+            d.warnings.append(f"{g.pos}: gene '{g.name}' has neither condition nor trigger (data only)")
+    if org.rules:
+        try:
+            lower_rules(org)
+        except LowerError as e:
+            d.errors.append(str(e))
+    if org.regulators:
+        try:
+            lower_regulation(org)
+        except LowerError as e:
+            d.errors.append(str(e))
+    declared = org.meta.get("metrics")
+    if isinstance(declared, list):
+        from .regulation import Trigger
+        for g in org.regulators:
+            try:
+                t = Trigger.parse(str(g.get("trigger")))
+            except ValueError:
+                continue
+            if t.kind == "when" and t.ref not in declared:
+                d.warnings.append(f"{g.pos}: gene '{g.name}' triggers on undeclared metric '{t.ref}'")
+
+
 def check(org: A.Organism) -> Diagnostics:
     d = Diagnostics()
+    check_kv(org, d)
+    if not org.genes and not org.genome:
+        return d                      # a pure rule/regulatory organism has no circuit to check
     genes = {}
     for g in org.genes:
         if g.name in genes:
