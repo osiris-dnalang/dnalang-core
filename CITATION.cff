@@ -2,8 +2,8 @@ cff-version: 1.2.0
 message: "If you use dnalang, please cite it as below."
 type: software
 title: "dnalang: a language for quantum circuit families with hardware-in-the-loop evolutionary search"
-version: 0.1.0
-date-released: 2026-09-20
+version: 0.2.0
+date-released: 2026-10-01
 license: Apache-2.0
 authors:
   - family-names: Davis
