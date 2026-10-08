@@ -26,6 +26,8 @@ a lineage read from a broken chain proves nothing.
 from __future__ import annotations
 
 import math
+import time
+import uuid
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from ..ledger import Ledger
@@ -55,6 +57,20 @@ def _num(x: Optional[float]) -> Optional[float]:
 def record(ledger: Ledger, *, run: str, generation: int, candidates: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Append one generation's candidates (built with `candidate()`) as a single ledger entry."""
     return ledger.append(KIND, {"run": run, "generation": int(generation), "candidates": candidates})
+
+
+def new_run_id(prefix: str) -> str:
+    """A run id no other search will share: a timestamp alone collided for two searches in one second."""
+    return time.strftime(f"{prefix}-%Y%m%dT%H%M%SZ", time.gmtime()) + "-" + uuid.uuid4().hex[:8]
+
+
+def claim(ledger: Ledger, run: str, generation: Optional[int] = None) -> None:
+    """Refuse to write into a run (or, given `generation`, a run's generation) the ledger already holds, so
+    two searches can never be merged by trace()."""
+    taken = {e["generation"] for e in ledger if e.get("kind") == KIND and e.get("run") == run}
+    if (generation is None and taken) or generation in taken:
+        where = f"run {run!r}" + ("" if generation is None else f" generation {generation}")
+        raise ValueError(f"the ledger already has lineage for {where}; use a new run id")
 
 
 def entries(ledger: Ledger, run: Optional[str] = None) -> List[Dict[str, Any]]:

@@ -116,3 +116,32 @@ def test_ledger_module_is_unchanged_for_its_standalone_readers():
 
 
 V020_LEDGER_SHA256 = "d2a8f371e068fc63a281e01a8e1e8893936527d4fcf9bd290f416eac0f48df20"  # dnalang/ledger.py at v0.2.0 (227261e)
+
+
+def test_two_searches_on_one_ledger_stay_separate(tmp_path):
+    sp = DDSpace(n_qubits=4, K=8)
+    L = Ledger(tmp_path / "runs.jsonl")
+    cfg = GAConfig(pop_size=6, generations=1, elite=1, seed=3)
+    a = evolve(sp, lambda g: DDSurrogate(4, samples=2, seed=1).score(g, 8, 16e-6), cfg, ledger=L)
+    b = evolve(sp, lambda g: DDSurrogate(4, samples=2, seed=1).score(g, 8, 16e-6), cfg, ledger=L)
+    runs = {c["run"] for c in lineage.entries(L)}
+    assert len(runs) == 2 and a.best == b.best                  # same search, two distinct runs
+    assert {c["generation"] for c in lineage.entries(L) if c["run"] == sorted(runs)[0]} == {0, 1}
+
+
+def test_a_run_id_or_hardware_generation_is_never_reused(tmp_path):
+    sp, S, L, _ = _ga(tmp_path)
+    with pytest.raises(ValueError, match="already has lineage"):
+        evolve(sp, lambda g: S.score(g, 8, 16e-6), CFG, ledger=L, run="r1")
+    parents = [sp.baselines()["xy4_stag"], sp.baselines()["xy4"]]
+    breed_from_ranking(sp, parents, 2, set(), rng=random.Random(2), ledger=L, run="hw", generation=1)
+    breed_from_ranking(sp, parents, 2, set(), rng=random.Random(3), ledger=L, run="hw", generation=2)
+    with pytest.raises(ValueError, match="generation 2"):
+        breed_from_ranking(sp, parents, 2, set(), rng=random.Random(4), ledger=L, run="hw", generation=2)
+
+
+def test_cli_trace_lineage_on_a_missing_ledger_creates_nothing(tmp_path):
+    missing = tmp_path / "typo.jsonl"
+    with pytest.raises(SystemExit, match="no ledger"):
+        main(["trace-lineage", str(missing), "XIYI|XXXX|0.5"])
+    assert not missing.exists()

@@ -57,7 +57,7 @@ dnalang/
              lineage.py                     # lineage entries on the ledger; trace() back to generation 0
   cli.py                                    # dnalang parse|check|lower|qasm|run|verify-ledger|trace-lineage
 examples/   bell.dna  ghz.dna  dd_staggered_xy4.dna
-tests/      33 tests; includes "Bell is 50/50", "GHZ fidelity = 1 for any phase", "ledger detects tampering",
+tests/      36 tests; includes "Bell is 50/50", "GHZ fidelity = 1 for any phase", "ledger detects tampering",
             "recording lineage does not change the search"
 docs/       LANGUAGE.md
 ```
@@ -79,6 +79,12 @@ Recording never touches the search's random stream, so a run gives the same resu
 
 `dnalang trace-lineage runs.jsonl <genome-key>` (or `lineage.trace`) walks the parents back to the first
 generation. It refuses a ledger whose chain does not verify.
+
+A run id the ledger already holds is refused, and so is a hardware-round generation already recorded.
+
+To join a measured hardware result to its proposal, pass the same `circuit_hash` context you submit with. The
+recorded `circuit_sha256` then equals the hash that `backends/ibm.py` writes into the submit-intent entry's
+`circuit_hashes`.
 
 `ledger.py` is unchanged from 0.2.0, so readers of earlier ledgers see only a new entry kind.
 

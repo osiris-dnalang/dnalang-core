@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import random
-import time
 from dataclasses import dataclass, field
 from typing import Callable, List, Optional
 
@@ -36,11 +35,13 @@ def evolve(space: Space, fitness: Fitness, cfg: GAConfig = GAConfig(), seeds: Op
            ledger: Optional[Ledger] = None, run: Optional[str] = None,
            circuit_hash: Optional[Callable[[dict], str]] = None) -> GAResult:
     """With `ledger`, each generation's evaluations are appended as one lineage entry (evolve/lineage.py)
-    under `run` (default: a timestamped id); `circuit_hash` (e.g. lineage.compiled_hash(space)) adds the
+    under `run` (default: a fresh unique id; a run id the ledger already holds is refused); `circuit_hash` (e.g. lineage.compiled_hash(space)) adds the
     compiled circuit's hash. Recording never touches the search's random stream: results are the same
     without it."""
     rng = random.Random(cfg.seed)
-    run = run or time.strftime("ga-%Y%m%dT%H%M%SZ", time.gmtime())
+    run = run or lineage.new_run_id("ga")
+    if ledger is not None:
+        lineage.claim(ledger, run)
     pop = list(seeds or [])
     origin = [("seed", [])] * len(pop)
     while len(pop) < cfg.pop_size:
@@ -89,7 +90,9 @@ def breed_from_ranking(space: Space, ranked_parents: List[dict], n_children: int
     if given, rank candidates by surrogate before spending hardware. With `ledger`, each returned
     child is recorded as a "proposed" lineage candidate (no fitness yet) before any hardware is spent."""
     rng = rng or random.Random(11)
-    run = run or time.strftime("hw-%Y%m%dT%H%M%SZ", time.gmtime())
+    run = run or lineage.new_run_id("hw")
+    if ledger is not None:
+        lineage.claim(ledger, run, generation)   # one run can span hardware rounds, one entry per generation
     parents_of = {}
     cands: List[dict] = []
     tries = 0

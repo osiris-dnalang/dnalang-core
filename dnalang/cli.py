@@ -34,6 +34,8 @@ def main(argv=None):
 
     if a.cmd == "trace-lineage":
         from .evolve.lineage import trace
+        if not Path(a.path).is_file():          # Ledger() would create an empty file at a mistyped path
+            sys.exit(f"error: no ledger at {a.path}")
         try:
             path = trace(Ledger(Path(a.path)), a.genome, a.run)
         except ValueError as e:
