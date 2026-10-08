@@ -19,6 +19,24 @@ def _load(path: str):
         sys.exit(f"error: {e}")
 
 
+def _invariance(org, max_qubits: int) -> int:
+    """0: every angle parameter can move the outcomes · 1: one cannot (abort the sweep) ·
+    2: the audit could not certify (not run, or a verdict SymPy could not prove)."""
+    from .invariance import audit
+    r = audit(org, max_qubits=max_qubits)
+    for f in r.findings:
+        tag = {"invariant": "error: ", "undetermined": "warning: "}.get(f.verdict, "")
+        print(f"{tag}invariance: {f.param}: {f.verdict} ({f.proof})")
+    for n in r.not_audited:
+        print(f"note: invariance: {n} not audited")
+    if r.skipped:
+        print(f"warning: invariance audit not run: {r.skipped}"); return 2
+    if r.invariant():
+        print("error: sweeping an invariant parameter measures nothing; classify it as a mathematical identity")
+        return 1
+    return 2 if r.undetermined() else 0
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="dnalang")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -28,6 +46,10 @@ def main(argv=None):
             p.add_argument("--shots", type=int, default=1024); p.add_argument("--seed", type=int)
         if name == "qasm":
             p.add_argument("--dt", type=float)
+        if name == "check":
+            p.add_argument("--invariance", action="store_true",
+                           help="symbolic audit: flag angle parameters no outcome can depend on (needs sympy)")
+            p.add_argument("--max-qubits", type=int, default=8)
     v = sub.add_parser("verify-ledger"); v.add_argument("path")
     a = ap.parse_args(argv)
 
@@ -41,6 +63,8 @@ def main(argv=None):
     d = check(org)
     for w in d.warnings: print("warning:", w)
     for e in d.errors: print("error:", e)
+    if a.cmd == "check" and d.ok() and a.invariance:
+        return _invariance(org, a.max_qubits)
     if a.cmd == "check" or d.errors:
         return 0 if d.ok() else 1
     if a.cmd in ("rules", "regulation", "ir"):

@@ -91,10 +91,19 @@ parity (even echo counts per port, warning `dd-parity`). Key-value genes: unique
 ternary conditions of one width, valid DSL actions, valid triggers, known dependency and
 `after` targets, acyclic dependencies, declared metrics (warning).
 
+`dnalang check FILE --invariance` (needs `.[sym]`) adds a symbolic audit before any sweep: every
+`angle` argument is kept exact, the noiseless statevector is computed in SymPy, and each
+measured-outcome probability is differentiated by the parameter. A parameter with dP/dθ ≡ 0 for
+every outcome is reported as `invariant` (exit 1): sweeping it measures nothing on any device. A
+parameter shared by several instances is audited tied and per instance. Duration and int
+parameters are listed as not audited (a delay is the identity without noise); circuits over
+`--max-qubits` (default 8) or with mid-circuit measurement are not audited (exit 2).
+
 ## CLI
 
 ```
 dnalang parse | check | lower | qasm | run | rules | regulation | ir FILE     dnalang verify-ledger PATH
+dnalang check FILE --invariance [--max-qubits N]
 ```
 
 `ir` prints every target the organism supports with its hash. What the language does **not**

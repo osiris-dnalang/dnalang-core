@@ -35,6 +35,7 @@ The biological words are aliases (`helix`=H, `bond`=CX, `twist`=RZ, `fold`=RY, `
 ```
 pip install -e ".[dev]"          # compiler + Aer simulator + tests
 pip install -e ".[ibm]"          # + IBM Quantum backend
+pip install -e ".[sym]"          # + SymPy, for `dnalang check --invariance`
 pytest
 ```
 
@@ -53,6 +54,7 @@ dnalang/
   backends/  aer.py  ibm.py  qasm3.py       # execution; ibm.py writes the ledger before submitting
   metrics/   core.py                        # GHZ parity fidelity, |+> survival, W2 replicate scatter, bootstrap CIs
   ledger.py                                 # hash-chained JSONL
+  invariance.py                             # symbolic audit: does any outcome depend on this parameter?
   evolve/    space.py  surrogate.py  loop.py  # genome spaces, quasi-static DD surrogate, GA + hardware-in-the-loop breeding
   cli.py                                    # dnalang parse|check|lower|qasm|run|verify-ledger
 examples/   bell.dna  ghz.dna  dd_staggered_xy4.dna
