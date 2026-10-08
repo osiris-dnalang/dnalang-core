@@ -1,4 +1,4 @@
-"""dnalang CLI: parse | check | lower | qasm | run | rules | regulation | ir | verify-ledger"""
+"""dnalang CLI: parse | check | lower | qasm | run | rules | regulation | ir | verify-ledger | trace-lineage"""
 from __future__ import annotations
 
 import argparse
@@ -29,8 +29,21 @@ def main(argv=None):
         if name == "qasm":
             p.add_argument("--dt", type=float)
     v = sub.add_parser("verify-ledger"); v.add_argument("path")
+    t = sub.add_parser("trace-lineage"); t.add_argument("path"); t.add_argument("genome"); t.add_argument("--run")
     a = ap.parse_args(argv)
 
+    if a.cmd == "trace-lineage":
+        from .evolve.lineage import trace
+        try:
+            path = trace(Ledger(Path(a.path)), a.genome, a.run)
+        except ValueError as e:
+            sys.exit(f"error: {e}")
+        for e in path:
+            fit = "-" if e["fitness"] is None else f"{e['fitness']:.4f}"
+            print(f"gen {e['generation']:>3}  {e['operator']:<12} fitness {fit:>7}  {e['genome']}"
+                  + (f"  <- {' + '.join(e['parents'])}" if e["parents"] else "")
+                  + (f"  circuit {e['circuit_sha256'][:16]}" if e.get("circuit_sha256") else ""))
+        return 0
     if a.cmd == "verify-ledger":
         bad = Ledger(Path(a.path)).verify()
         print("ledger OK" if bad is None else f"ledger BROKEN: {bad}"); return 0 if bad is None else 1
