@@ -9,7 +9,7 @@ It does three things:
 
 1. **Compiles** a compact organism/gene syntax to a flat circuit IR, then to Qiskit or OpenQASM 3. Genes are parameterized sub-circuits with typed qubit ports; genomes bind them to physical qubits. The compiler rejects anything it cannot execute and warns about dynamical-decoupling sequences whose net action is not the identity.
 2. **Evolves** genomes with a genetic algorithm whose fitness is a *measurement* — on a simulator, on a physics surrogate, or on real hardware — never a label.
-3. **Records** every hardware submission in an append-only SHA-256 chain, written *before* the job is sent, so the record of what was tried does not depend on what came back.
+3. **Records** every hardware submission in an append-only SHA-256 chain, written *before* the job is sent, so the record of what was tried does not depend on what came back. Given the same ledger, the search also records every genome it evaluates or proposes, with its parents, operator and fitness (its *lineage*).
 
 ```
 organism Bell {
@@ -54,14 +54,42 @@ dnalang/
   metrics/   core.py                        # GHZ parity fidelity, |+> survival, W2 replicate scatter, bootstrap CIs
   ledger.py                                 # hash-chained JSONL
   evolve/    space.py  surrogate.py  loop.py  # genome spaces, quasi-static DD surrogate, GA + hardware-in-the-loop breeding
-  cli.py                                    # dnalang parse|check|lower|qasm|run|verify-ledger
+             lineage.py                     # lineage entries on the ledger; trace() back to generation 0
+  cli.py                                    # dnalang parse|check|lower|qasm|run|verify-ledger|trace-lineage
 examples/   bell.dna  ghz.dna  dd_staggered_xy4.dna
-tests/      18 tests; includes "Bell is 50/50", "GHZ fidelity = 1 for any phase", "ledger detects tampering"
+tests/      36 tests; includes "Bell is 50/50", "GHZ fidelity = 1 for any phase", "ledger detects tampering",
+            "recording lineage does not change the search"
 docs/       LANGUAGE.md
 ```
 
+## Lineage
+
+`evolve(space, fitness, cfg, ledger=Ledger(path), run="...")` appends one `lineage` entry per evaluation:
+- the genome's key and its generation;
+- the operator that produced it (`seed`, `sample`, `elite` or `cross+mutate`);
+- its parents' keys;
+- its fitness.
+
+`circuit_hash=lineage.compiled_hash(space, T_us=16.0)` adds the compiled circuit's `sha256`.
+
+`breed_from_ranking(..., ledger=...)` records each hardware candidate as `proposed`, with the surrogate score
+it was ranked by, before any job is submitted.
+
+Recording never touches the search's random stream, so a run gives the same results with or without a ledger.
+
+`dnalang trace-lineage runs.jsonl <genome-key>` (or `lineage.trace`) walks the parents back to the first
+generation. It refuses a ledger whose chain does not verify.
+
+A run id the ledger already holds is refused, and so is a hardware-round generation already recorded.
+
+To join a measured hardware result to its proposal, pass the same `circuit_hash` context you submit with. The
+recorded `circuit_sha256` then equals the hash that `backends/ibm.py` writes into the submit-intent entry's
+`circuit_hashes`.
+
+`ledger.py` is unchanged from 0.2.0, so readers of earlier ledgers see only a new entry kind.
+
 ## Status and provenance
 
-Version 0.1.0. This is a rewrite from scratch that keeps only the parts of earlier work by the same author that survived testing on hardware. Earlier records under this name made claims — a τ-phase coherence anomaly, a 51.843° "lock" angle, a 10⁶× error suppression, a 136-bit "negentropy gap" — that were later refuted by the author on IBM hardware or shown to be analysis artifacts; errata are filed where the platform allows ([10.5281/zenodo.19656600](https://doi.org/10.5281/zenodo.19656600)) and the refuting datasets are public ([10.5281/zenodo.18781261](https://doi.org/10.5281/zenodo.18781261), [10.5281/zenodo.22855102](https://doi.org/10.5281/zenodo.22855102)). None of those constants or metrics appear in this codebase.
+Version 0.3.0. This is a rewrite from scratch that keeps only the parts of earlier work by the same author that survived testing on hardware. Earlier records under this name made claims — a τ-phase coherence anomaly, a 51.843° "lock" angle, a 10⁶× error suppression, a 136-bit "negentropy gap" — that were later refuted by the author on IBM hardware or shown to be analysis artifacts; errata are filed where the platform allows ([10.5281/zenodo.19656600](https://doi.org/10.5281/zenodo.19656600)) and the refuting datasets are public ([10.5281/zenodo.18781261](https://doi.org/10.5281/zenodo.18781261), [10.5281/zenodo.22855102](https://doi.org/10.5281/zenodo.22855102)). None of those constants or metrics appear in this codebase.
 
 License: Apache-2.0. Author: Devin Phillip Davis.
